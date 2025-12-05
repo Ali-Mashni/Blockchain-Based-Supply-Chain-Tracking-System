@@ -1,8 +1,11 @@
 // === CONFIG: fill with your deployed contract data ===
 
-const CONTRACT_ADDRESS = ""; //YOUR SMART CONTRACT ADDRESS GOES HERE
+// Expect CONTRACT_ADDRESS and ABI to be provided by contract-config.js
+const { CONTRACT_ADDRESS, ABI } = window.BSTS_CONFIG || {};
 
-const ABI = [ ]; //YOUR ABI CONTENTS GO HERE
+if (!CONTRACT_ADDRESS || !ABI) {
+  console.error("BSTS_CONFIG is missing CONTRACT_ADDRESS or ABI.");
+}
 
 function toWei(ethString){
   return ethers.parseUnits(String(ethString), 18);
