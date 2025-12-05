@@ -65,5 +65,46 @@ function wireApproveButtons(){
     });
   });
 }
+// Supplier pays producer on chain
+async function handleSupplierBuyOnChain(row) {
+  const id   = row.dataset.id;
+  const price = row.dataset.price;        // in ETH from PHP
+  // You could also read the qty input and multiply, but simplest: 1 unit:
+  const priceWei = toWei(price);          // BigInt
 
-window.addEventListener('load', wireApproveButtons);
+  const { contract } = await getSignerAndContract();
+  const tx = await contract.paySupplier(BigInt(id), { value: priceWei });
+  const receipt = await tx.wait();
+  return receipt?.hash || tx.hash;
+}
+
+function wireSupplierBuyButtons() {
+  const buttons = document.querySelectorAll('.btn-onchain-buy');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('tr');
+      const form = row.querySelector('form.supplier-buy-form');
+      const txInput = form.querySelector('input[name="txhash"]');
+
+      btn.disabled = true;
+      btn.textContent = "Buying…";
+
+      try {
+        const txhash = await handleSupplierBuyOnChain(row);
+        txInput.value = txhash || "";
+        form.submit(); // PHP: deduct qty + save suppliertx
+      } catch (err) {
+        console.error(err);
+        alert("On-chain supplier payment failed: " + (err?.shortMessage || err?.message || err));
+        btn.disabled = false;
+        btn.textContent = "Buy on chain";
+      }
+    });
+  });
+}
+
+
+window.addEventListener('load', () => {
+  wireApproveButtons();       // producer -> addProduct
+  wireSupplierBuyButtons();   // supplier -> paySupplier
+});
