@@ -108,3 +108,19 @@ window.addEventListener('load', () => {
   wireApproveButtons();       // producer -> addProduct
   wireSupplierBuyButtons();   // supplier -> paySupplier
 });
+// === BALANCE HELPERS ===
+
+async function getMyOnChainBalance() {
+  const { signer, contract } = await getSignerAndContract();
+  const addr = await signer.getAddress();
+  const balWei = await contract.balances(addr);
+  const balEth = ethers.formatEther(balWei);
+  return { addr, balWei, balEth };
+}
+
+async function withdrawMyBalance() {
+  const { contract } = await getSignerAndContract();
+  const tx = await contract.withdrawBalance();
+  const receipt = await tx.wait();
+  return receipt?.hash || tx.hash;
+}

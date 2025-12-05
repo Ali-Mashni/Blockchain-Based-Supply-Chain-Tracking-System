@@ -286,9 +286,41 @@ table, th, td {
 
 <p class="muted" style="margin-top:10px;">Only your own products are shown here (owner = <?= h($me['username']) ?>).</p>
 
+<h2 style="margin:24px 0 8px;">On-chain Balance</h2>
+<p id="chainBalance" class="muted">Loading…</p>
+<button type="button" onclick="handleWithdraw()">Withdraw Balance</button>
+<pre id="withdrawMsg" class="muted" style="margin-top:8px;white-space:pre-wrap;"></pre>
+
 <?php render_footer(); ?>
 
 <!-- ====== Ethers.js (UMD build) & on-chain glue ====== -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 <script src="contract-config.js" defer></script>
 <script src="contract.js" defer></script>
+<script>
+window.addEventListener('load', async () => {
+  try {
+    const info = await getMyOnChainBalance();
+    document.getElementById('chainBalance').textContent =
+      info.balEth + " ETH (address " +
+      info.addr.slice(0, 6) + "…" + info.addr.slice(-4) + ")";
+  } catch (e) {
+    document.getElementById('chainBalance').textContent =
+      "Failed to load balance: " + (e.shortMessage || e.message || e);
+  }
+});
+
+async function handleWithdraw() {
+  const el = document.getElementById('withdrawMsg');
+  el.textContent = "Submitting withdraw transaction…";
+  try {
+    const hash = await withdrawMyBalance();
+    el.textContent =
+      "Withdraw submitted. Tx: " + hash + "\nCheck it on Sepolia Etherscan.";
+  } catch (e) {
+    el.textContent =
+      "Withdraw failed: " + (e.shortMessage || e.message || e);
+  }
+}
+</script>
+
