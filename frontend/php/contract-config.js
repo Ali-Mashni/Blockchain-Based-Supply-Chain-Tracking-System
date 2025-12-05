@@ -2,7 +2,7 @@
 // Global config for BSTS dApp
 
 window.BSTS_CONFIG = Object.freeze({
-  CONTRACT_ADDRESS: "0xb5cf9796f3bebe9471F15cb6e1b077875ce105bE",
+  CONTRACT_ADDRESS: "0x711ca8fBEAeEA2A9c18F794f98f683853e68b630",
   ABI: [
 		{
 			"inputs": [],
@@ -46,7 +46,13 @@ window.BSTS_CONFIG = Object.freeze({
 				{
 					"indexed": false,
 					"internalType": "uint256",
-					"name": "value",
+					"name": "qty",
+					"type": "uint256"
+				},
+				{
+					"indexed": false,
+					"internalType": "uint256",
+					"name": "totalPaid",
 					"type": "uint256"
 				}
 			],
@@ -108,7 +114,13 @@ window.BSTS_CONFIG = Object.freeze({
 				{
 					"indexed": false,
 					"internalType": "uint256",
-					"name": "value",
+					"name": "qty",
+					"type": "uint256"
+				},
+				{
+					"indexed": false,
+					"internalType": "uint256",
+					"name": "totalPaid",
 					"type": "uint256"
 				}
 			],
@@ -270,6 +282,11 @@ window.BSTS_CONFIG = Object.freeze({
 					"internalType": "uint256",
 					"name": "id",
 					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "qty",
+					"type": "uint256"
 				}
 			],
 			"name": "payConsumer",
@@ -281,7 +298,12 @@ window.BSTS_CONFIG = Object.freeze({
 			"inputs": [
 				{
 					"internalType": "uint256",
-					"name": "id",
+					"name": "productId",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "qty",
 					"type": "uint256"
 				}
 			],
