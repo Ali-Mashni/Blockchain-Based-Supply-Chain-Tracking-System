@@ -4,14 +4,14 @@ pragma solidity >=0.8.2 <0.9.0;
 contract ProductsChain {
     struct Product {
         uint256 id;
-        address owner;      // current owner
+        address owner;      // current owner (last buyer or producer)
         address supplier;   // last supplier
         address consumer;   // last consumer
         string  ownertx;    // kept empty on chain; used off-chain in PHP
         string  suppliertx; // kept empty on chain; used off-chain in PHP
         string  metaHash;
         uint256 price;      // price per unit in WEI
-        uint256 qty;        // quantity
+        uint256 qty;        // remaining quantity (for demo)
         bool    approved;
         uint64  createdAt;
         uint64  updatedAt;
@@ -32,8 +32,21 @@ contract ProductsChain {
         uint256 price,
         uint256 qty
     );
-    event SupplierPaid(uint256 indexed id, address indexed supplier, uint256 value);
-    event ConsumerPaid(uint256 indexed id, address indexed consumer, uint256 value);
+
+    event SupplierPaid(
+        uint256 indexed id,
+        address indexed supplier,
+        uint256 qty,
+        uint256 totalPaid
+    );
+
+    event ConsumerPaid(
+        uint256 indexed id,
+        address indexed consumer,
+        uint256 qty,
+        uint256 totalPaid
+    );
+
     event BalanceWithdrawn(address indexed account, uint256 amount);
 
     modifier onlyAdmin() {
@@ -80,39 +93,59 @@ contract ProductsChain {
         emit ProductAdded(id, msg.sender, metaHash, price, qty);
     }
 
-    // ---------- Supplier: pay producer on chain ----------
-    // For simplicity: pays for 1 unit at price (you can think qty as batch size off-chain)
-    function paySupplier(uint256 id) external payable {
-        Product storage p = products[id];
-        require(p.id != 0 && p.approved, "not found/approved");
-        require(roles[msg.sender] == Role.Supplier, "not supplier");
-        require(msg.sender != p.owner, "already owner");
-        require(msg.value == p.price, "wrong amount");
+    // ---------- Supplier: pay producer on chain for chosen qty ----------
+    function paySupplier(uint256 productId, uint256 qty) external payable {
+        Product storage p = products[productId];
 
-        // credit producer
+        require(roles[msg.sender] == Role.Supplier, "not supplier");
+        require(p.approved, "not approved");
+
+        // qty-based checks
+        require(qty > 0, "qty=0");
+        require(qty <= p.qty, "qty>available");
+
+        // Treat p.price as *price per unit* in wei
+        uint256 total = p.price * qty;
+        require(msg.value == total, "wrong amount");
+
+        // Decrement remaining quantity (simple global view)
+        p.qty -= qty;
+
+        // Credit producer balance (producer is p.owner)
         balances[p.owner] += msg.value;
+
+        // Track last supplier (for history)
         p.supplier = msg.sender;
-        p.owner = msg.sender;
+        p.owner = msg.sender;  // last owner becomes this supplier
         p.updatedAt = uint64(block.timestamp);
 
-        emit SupplierPaid(id, msg.sender, msg.value);
+        emit SupplierPaid(productId, msg.sender, qty, msg.value);
     }
 
-    // ---------- Consumer: pay supplier on chain ----------
-    function payConsumer(uint256 id) external payable {
+    // ---------- Consumer: pay supplier on chain for chosen qty ----------
+    function payConsumer(uint256 id, uint256 qty) external payable {
         Product storage p = products[id];
+
         require(p.id != 0 && p.approved, "not found/approved");
         require(roles[msg.sender] == Role.Consumer, "not consumer");
         require(p.supplier != address(0), "no supplier yet");
-        require(msg.sender != p.supplier, "already owner");
-        require(msg.value == p.price, "wrong amount");
 
+        require(qty > 0, "qty=0");
+        require(qty <= p.qty, "qty>available");
+
+        uint256 total = p.price * qty;
+        require(msg.value == total, "wrong amount");
+
+        // Credit supplier balance
         balances[p.supplier] += msg.value;
+
+        // Update product ownership & remaining qty
         p.consumer = msg.sender;
         p.owner = msg.sender;
+        p.qty -= qty;
         p.updatedAt = uint64(block.timestamp);
 
-        emit ConsumerPaid(id, msg.sender, msg.value);
+        emit ConsumerPaid(id, msg.sender, qty, msg.value);
     }
 
     // ---------- Withdraw accumulated balances ----------
