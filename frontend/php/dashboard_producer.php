@@ -290,4 +290,5 @@ table, th, td {
 
 <!-- ====== Ethers.js (UMD build) & on-chain glue ====== -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+<script src="contract-config.js" defer></script>
 <script src="contract.js" defer></script>

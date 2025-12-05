@@ -143,8 +143,25 @@ table, th, td {
           data-name="<?= h($p['name']) ?>"
           data-price="<?= h($p['price']) ?>"
           data-qty="<?= h($p['qty']) ?>">
-          //YOUR CODES GO HERE
-        
+          <td>#<?= h($p['id']) ?></td>
+          <td><?= h($p['name']) ?></td>
+          <td><?= h(number_format($p['price'], 2)) ?></td>
+          <td><?= h($p['qty']) ?></td>
+          <td>
+            <form method="post" action="dashboard_supplier.php">
+              <input type="hidden" name="action" value="approve">
+              <input type="hidden" name="id" value="<?= h($p['id']) ?>">
+              <input type="hidden" name="name" value="<?= h($p['name']) ?>">
+              <!-- For now we do not use on-chain tx here, so leave txhash empty -->
+              <input type="hidden" name="txhash" value="">
+              <input type="number" name="qty"
+                    min="1"
+                    max="<?= h($p['qty']) ?>"
+                    required
+                    style="width:80px">
+              <button type="submit">Purchase</button>
+            </form>
+          </td>
       </tr>
     <?php endforeach; ?>
   <?php endif; ?>
@@ -165,8 +182,19 @@ table, th, td {
           data-name="<?= h($r['name']) ?>"
           data-price="<?= h($r['price']) ?>"
           data-qty="<?= h($r['qty']) ?>">
-        
-           //YOUR CODES GO HERE
+          <td>#<?= h($r['id']) ?></td>
+          <td><?= h($r['name']) ?></td>
+          <td><?= h(number_format($r['price'], 2)) ?></td>
+          <td><?= h($r['qty']) ?></td>
+          <td><?= h($r['status']) ?></td>
+          <td class="muted"><?= h($r['updated_at']) ?></td>
+          <td class="muted">
+            <?php if (!empty($r['suppliertx'])): ?>
+              <a href="https://sepolia.etherscan.io/tx/<?= h($r['suppliertx']) ?>" target="_blank">View</a>
+            <?php else: ?>
+              &mdash;
+            <?php endif; ?>
+          </td>
       </tr>
         <?php endif; ?>
     <?php endforeach; ?>
@@ -180,4 +208,5 @@ table, th, td {
 
 <!-- ====== Ethers.js (UMD build) & on-chain glue ====== -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+<script src="contract-config.js" defer></script>
 <script src="contract.js" defer></script>
