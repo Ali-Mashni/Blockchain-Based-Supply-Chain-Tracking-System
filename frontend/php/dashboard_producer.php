@@ -145,7 +145,7 @@ render_header("Producer Dashboard");
     </div>
     <div>
       <label>Price</label>
-      <input name="price" type="number" step="0.01" min="0" required placeholder="e.g., 12.50">
+      <input name="price" type="number" step="0.0001" min="0.0001" required placeholder="e.g., 0.0010">
     </div>
   </div>
   <div class="row2">
@@ -184,7 +184,7 @@ render_header("Producer Dashboard");
               <input type="hidden" name="action" value="update">
               <input type="hidden" name="id" value="<?= h($r['id']) ?>">
               <input name="name" value="<?= h($r['name']) ?>" style="max-width:220px">
-              <input name="price" type="number" step="0.01" min="0" value="<?= h($r['price']) ?>" style="width:110px">
+              <input name="price" type="number" step="0.0001" min="0.0001" value="<?= h($r['price']) ?>" style="width:110px">
               <input name="qty" type="number" step="1" min="0" value="<?= h($r['qty']) ?>" style="width:90px">
                <?php if ($r['status']==='pending'): ?>
                      <button type="submit">Save</button>
@@ -192,7 +192,7 @@ render_header("Producer Dashboard");
             </form>
           <?php endif; ?>
         </td>
-        <td><?= h(number_format($r['price'], 2)) ?></td>
+        <td><?= h(number_format($r['price'], 4)) ?></td>
         <td><?= h($r['qty']) ?></td>
         <td>
           <span class="pill <?= $r['status']==='approved'?'ok':'pending' ?>">
@@ -265,7 +265,7 @@ table, th, td {
             <?= h($r['name']) ?>
           <?php endif; ?>
         </td>
-        <td><?= h(number_format($r['price'], 2)) ?></td>
+        <td><?= h(number_format($r['price'], 4)) ?></td>
         <td><?= h($r['qty']) ?></td>
         <td>
           <span class="pill <?= $r['status']==='approved'?'ok':'pending' ?>">
