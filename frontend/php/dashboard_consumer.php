@@ -52,19 +52,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newid = next_product_id($all);
 
                 // Record this purchase as a separate row
+                $src   = $all[$id]; // shipped row we bought from
                 $all[$newid] = [
                     'id'         => $newid,
-                    'owner'      => $src['owner'],       // producer username
-                    'supplier'   => $src['supplier'],    // supplier username
-                    'consumer'   => $me['username'],     // this consumer
-                    'ownertx'    => $src['ownertx'],     // producer tx
-                    'suppliertx' => $txh,                // store consumer tx here
+                    'owner'      => $src['owner'],      // producer username
+                    'supplier'   => $src['supplier'],   // supplier username
+                    'consumer'   => $me['username'],    // THIS consumer
+                    'ownertx'    => $src['ownertx'],    // producer tx
+                    'suppliertx' => $txh,               // store consumer tx here
                     'name'       => $src['name'],
                     'price'      => $src['price'],
                     'qty'        => $qty,
                     'status'     => 'purchased',
+                    'onchain_id' => $src['onchain_id'] ?? null, // keep linkage if present
+                    'src_id'     => $src['src_id'] ?? null,     // link to original approved row if present
                     'updated_at' => now_iso(),
                 ];
+
+
 
                 $msg = save_products($all)
                     ? "Product purchased."
@@ -145,19 +150,11 @@ table, th, td {
   <?php else: ?>
     <?php foreach ($available as $p): ?>
         <?php
-            // Find the original approved product id for this shipment
-            $rootId = $p['id'];
-            foreach ($all as $cand) {
-                if (($cand['status'] ?? '') === 'approved' &&
-                    $cand['owner'] === $p['owner'] &&
-                    $cand['name']  === $p['name']) {
-                    $rootId = $cand['id'];
-                    break;
-                }
-            }
+            $rootId = $p['onchain_id'] ?? null; // require true on-chain id
         ?>
-      <tr data-id="<?= h($p['id']) ?>"
-        data-root-id="<?= h($rootId) ?>"
+        <tr data-id="<?= h($p['id']) ?>"
+        data-root-id="<?= h($rootId ?? '') ?>"
+        data-src-id="<?= h($p['src_id'] ?? '') ?>"
         data-name="<?= h($p['name']) ?>"
         data-price="<?= h($p['price']) ?>"
         data-qty="<?= h($p['qty']) ?>">
@@ -175,7 +172,11 @@ table, th, td {
             <input type="number" name="qty"
                    min="1" max="<?= h($p['qty']) ?>"
                    required style="width:80px">
-            <button type="button" class="btn-consumer-buy">Buy on chain</button>
+            <button
+            type="button"
+            class="btn-consumer-buy"
+            <?= empty($p['onchain_id']) ? 'title="Missing on-chain id (will auto-resolve from events)"' : '' ?>
+          >Buy on chain</button>
           </form>
         </td>
       </tr>
@@ -222,7 +223,7 @@ table, th, td {
           <?php endif; ?>
         </td>
         <td>
-          <a href="<?= h($viewerUrl) ?>" target="_blank">
+          <a data-qr="1" href="<?= h($viewerUrl) ?>" target="_blank">
             <img src="<?= h($qrImgUrl) ?>"
                  alt="QR for purchased product #<?= h($r['id']) ?>"
                  style="width:90px;height:90px;cursor:pointer;">
@@ -243,3 +244,29 @@ table, th, td {
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
 <script src="contract-config.js" defer></script>
 <script src="contract.js" defer></script>
+<script defer>
+document.addEventListener('DOMContentLoaded', function () {
+  const ca = (window.BSTS_CONFIG && window.BSTS_CONFIG.CONTRACT_ADDRESS) || '';
+  if (!/^0x[a-fA-F0-9]{40}$/.test(ca)) return; // nothing to do
+
+  document.querySelectorAll('a[data-qr="1"]').forEach(a => {
+    try {
+      const u = new URL(a.href, location.href);
+      if (!u.searchParams.get('ca')) {
+        u.searchParams.set('ca', ca);
+        a.href = u.toString();
+      }
+
+      const img = a.querySelector('img');
+      if (img && img.src.includes('api.qrserver.com')) {
+        const qr = new URL(img.src, location.href);
+        const dataParam = qr.searchParams.get('data') || a.href;
+        const data = new URL(dataParam, location.href);
+        data.searchParams.set('ca', ca);
+        qr.searchParams.set('data', data.toString());
+        img.src = qr.toString();
+      }
+    } catch(e){}
+  });
+});
+</script>
