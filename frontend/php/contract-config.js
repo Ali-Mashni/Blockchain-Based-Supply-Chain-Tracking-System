@@ -2,7 +2,7 @@
 // Global config for BSTS dApp
 
 window.BSTS_CONFIG = Object.freeze({
-  CONTRACT_ADDRESS: "0x711ca8fBEAeEA2A9c18F794f98f683853e68b630",
+  CONTRACT_ADDRESS: "0x71BDA1616018b3D3a8eCE63d25d924c345E6ad1d",
   ABI: [
 		{
 			"inputs": [],
