@@ -155,14 +155,27 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
 <h2 style="margin:24px 0 8px;">Your Products</h2>
 <table>
   <?php if (empty($mine)): ?>
-    <tr><td colspan="7" class="muted">No products yet.</td></tr>
+    <tr><td colspan="8" class="muted">No products yet.</td></tr>
   <?php else: ?>
     <tr>
       <th>ID</th><th>Product</th><th>Price (ETH)</th><th>Qty</th>
-      <th>Status</th><th>Updated</th><th>Transaction</th>
+      <th>Status</th><th>Updated</th><th>Transaction</th><th>QR</th>
     </tr>
     <?php foreach ($mine as $r): ?>
       <?php if ($r['status'] === 'supplied'): ?>
+        <?php
+          // Build viewer URL exactly like producer (standard):
+          // QR_VIEWER_BASE has no query part, so we add ?id=...&name=...&qty=...&price=...&status=...
+          $viewerUrl = QR_VIEWER_BASE
+            . '?id='     . urlencode($r['id'])
+            . '&name='   . urlencode($r['name'])
+            . '&qty='    . urlencode($r['qty'])
+            . '&price='  . urlencode($r['price'])
+            . '&status=' . urlencode($r['status']);   // "supplied"
+
+          $qrImgUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data='
+                     . urlencode($viewerUrl);
+        ?>
         <tr data-id="<?= h($r['id']) ?>"
             data-name="<?= h($r['name']) ?>"
             data-price="<?= h($r['price']) ?>"
@@ -180,6 +193,13 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
             <?php else: ?>
               &mdash;
             <?php endif; ?>
+          </td>
+          <td>
+            <a href="<?= h($viewerUrl) ?>" target="_blank">
+              <img src="<?= h($qrImgUrl) ?>"
+                   alt="QR for product #<?= h($r['id']) ?>"
+                   style="width:90px;height:90px;cursor:pointer;">
+            </a>
           </td>
         </tr>
       <?php endif; ?>

@@ -244,27 +244,36 @@ table, th, td {
    text-align: left;
 }
 </style>
+
 <h2 style="margin:24px 0 8px;">My Approved Products</h2>
 <table>
   <?php if (empty($mine)): ?>
-    <tr><td colspan="7" class="muted">No products yet.</td></tr>
+    <tr><td colspan="8" class="muted">No products yet.</td></tr>
   <?php else: ?>
     <tr>
-    <th>ID</th><th>Name</th><th>Price</th><th>Qty</th><th>Status</th><th>Updated</th><th>Transaction</th>
-  </tr>
+      <th>ID</th><th>Name</th><th>Price</th><th>Qty</th><th>Status</th><th>Updated</th><th>Transaction</th><th>QR</th>
+    </tr>
     <?php foreach ($mine as $r): ?>
     <?php if ($r['status'] === 'approved'): ?>
+      <?php
+        // Build viewer URL with product details
+        // Make sure QR_VIEWER_BASE in config.php has NO query string
+        $viewerUrl = QR_VIEWER_BASE
+          . '?id='     . urlencode($r['id'])
+          . '&name='   . urlencode($r['name'])
+          . '&qty='    . urlencode($r['qty'])
+          . '&price='  . urlencode($r['price'])
+          . '&status=' . urlencode($r['status']);
+
+        $qrImgUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data='
+                   . urlencode($viewerUrl);
+      ?>
       <tr data-id="<?= h($r['id']) ?>"
           data-name="<?= h($r['name']) ?>"
           data-price="<?= h($r['price']) ?>"
           data-qty="<?= h($r['qty']) ?>">
         <td>#<?= h($r['id']) ?></td>
-        <td>
-          <?php if ($r['status'] === 'approved'): ?>
-            <!-- Approved: read-only -->
-            <?= h($r['name']) ?>
-          <?php endif; ?>
-        </td>
+        <td><?= h($r['name']) ?></td>
         <td><?= h(number_format($r['price'], 4)) ?></td>
         <td><?= h($r['qty']) ?></td>
         <td>
@@ -274,12 +283,19 @@ table, th, td {
         </td>
         <td class="muted"><?= h($r['updated_at']) ?></td>
         <td class="muted">
-            <!--$url = "https://sepolia.etherscan.io/tx/" . h($r['history1']);-->
-            <a href="https://sepolia.etherscan.io/tx/<?= htmlspecialchars(h($r['ownertx'])) ?>" target="_blank">
-                View </a>        
-            </td>
+          <a href="https://sepolia.etherscan.io/tx/<?= htmlspecialchars(h($r['ownertx'])) ?>" target="_blank">
+            View
+          </a>
+        </td>
+        <td>
+          <a href="<?= h($viewerUrl) ?>" target="_blank">
+            <img src="<?= h($qrImgUrl) ?>"
+                 alt="QR for product #<?= h($r['id']) ?>"
+                 style="width:90px;height:90px;cursor:pointer;">
+          </a>
+        </td>
       </tr>
-        <?php endif; ?>
+    <?php endif; ?>
     <?php endforeach; ?>
   <?php endif; ?>
 </table>
@@ -323,4 +339,3 @@ async function handleWithdraw() {
   }
 }
 </script>
-
