@@ -52,6 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'price'      => $all[$id]['price'],
                     'qty'        => $qty,
                     'status'     => 'supplied',
+                    'onchain_id' => $all[$id]['onchain_id'] ?? null,
+                    'src_id'     => $id,
                     'updated_at' => now_iso()
                 ];
 
@@ -124,9 +126,11 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
   <?php else: ?>
     <?php foreach ($approved as $pid => $p): ?>
       <tr data-id="<?= h($p['id']) ?>"
-          data-name="<?= h($p['name']) ?>"
-          data-price="<?= h($p['price']) ?>"
-          data-qty="<?= h($p['qty']) ?>">
+        data-root-id="<?= h($p['onchain_id'] ?? '') ?>"
+        data-name="<?= h($p['name']) ?>"
+        data-price="<?= h($p['price']) ?>"
+        data-qty="<?= h($p['qty']) ?>">
+
 
         <td>#<?= h($p['id']) ?></td>
         <td><?= h($p['name']) ?></td>
@@ -143,7 +147,14 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
             <input type="number" name="qty"
                    min="1" max="<?= h($p['qty']) ?>"
                    required style="width:80px">
-            <button type="button" class="btn-onchain-buy">Buy on chain</button>
+            <button
+              type="button"
+              class="btn-onchain-buy"
+              <?= empty($p['onchain_id']) ? 'title="Missing on-chain id (re-approve the product to capture it)"' : '' ?>
+              >Buy on chain
+            </button>
+
+
           </form>
         </td>
       </tr>
@@ -195,7 +206,7 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
             <?php endif; ?>
           </td>
           <td>
-            <a href="<?= h($viewerUrl) ?>" target="_blank">
+            <a data-qr="1" href="<?= h($viewerUrl) ?>" target="_blank">
               <img src="<?= h($qrImgUrl) ?>"
                    alt="QR for product #<?= h($r['id']) ?>"
                    style="width:90px;height:90px;cursor:pointer;">
@@ -248,3 +259,30 @@ async function handleWithdraw() {
   }
 }
 </script>
+<script defer>
+document.addEventListener('DOMContentLoaded', function () {
+  const ca = (window.BSTS_CONFIG && window.BSTS_CONFIG.CONTRACT_ADDRESS) || '';
+  if (!/^0x[a-fA-F0-9]{40}$/.test(ca)) return; // nothing to do
+
+  document.querySelectorAll('a[data-qr="1"]').forEach(a => {
+    try {
+      const u = new URL(a.href, location.href);
+      if (!u.searchParams.get('ca')) {
+        u.searchParams.set('ca', ca);
+        a.href = u.toString();
+      }
+
+      const img = a.querySelector('img');
+      if (img && img.src.includes('api.qrserver.com')) {
+        const qr = new URL(img.src, location.href);
+        const dataParam = qr.searchParams.get('data') || a.href;
+        const data = new URL(dataParam, location.href);
+        data.searchParams.set('ca', ca);
+        qr.searchParams.set('data', data.toString());
+        img.src = qr.toString();
+      }
+    } catch(e){}
+  });
+});
+</script>
+
