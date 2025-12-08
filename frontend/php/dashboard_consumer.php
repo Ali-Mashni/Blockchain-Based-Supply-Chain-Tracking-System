@@ -186,13 +186,26 @@ table, th, td {
 <h2 style="margin:24px 0 8px;">Your Products</h2>
 <table>
   <?php if (empty($mine)): ?>
-    <tr><td colspan="8" class="muted">You have not purchased any products yet.</td></tr>
+    <tr><td colspan="9" class="muted">You have not purchased any products yet.</td></tr>
   <?php else: ?>
     <tr>
       <th>ID</th><th>Product</th><th>Producer</th><th>Supplier</th>
-      <th>Price (ETH)</th><th>Qty</th><th>Updated</th><th>Transaction</th>
+      <th>Price (ETH)</th><th>Qty</th><th>Updated</th><th>Transaction</th><th>QR</th>
     </tr>
     <?php foreach ($mine as $r): ?>
+      <?php
+        // Build viewer URL with extra consumedAt param
+        $viewerUrl = QR_VIEWER_BASE
+          . '?id='         . urlencode($r['id'])
+          . '&name='       . urlencode($r['name'])
+          . '&qty='        . urlencode($r['qty'])
+          . '&price='      . urlencode($r['price'])
+          . '&status='     . urlencode($r['status'])      // "purchased"
+          . '&consumedAt=' . urlencode($r['updated_at']); // time of purchase
+
+        $qrImgUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data='
+                   . urlencode($viewerUrl);
+      ?>
       <tr>
         <td>#<?= h($r['id']) ?></td>
         <td><?= h($r['name']) ?></td>
@@ -207,6 +220,13 @@ table, th, td {
           <?php else: ?>
             &mdash;
           <?php endif; ?>
+        </td>
+        <td>
+          <a href="<?= h($viewerUrl) ?>" target="_blank">
+            <img src="<?= h($qrImgUrl) ?>"
+                 alt="QR for purchased product #<?= h($r['id']) ?>"
+                 style="width:90px;height:90px;cursor:pointer;">
+          </a>
         </td>
       </tr>
     <?php endforeach; ?>

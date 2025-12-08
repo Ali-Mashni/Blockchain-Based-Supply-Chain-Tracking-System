@@ -1,5 +1,7 @@
 <?php
 // Shared config + helpers
+const QR_VIEWER_BASE = 'https://WaleedBader.github.io/QR/index.html';
+
 session_start();
 
 const USERS_FILE    = __DIR__ . '/users.txt';
