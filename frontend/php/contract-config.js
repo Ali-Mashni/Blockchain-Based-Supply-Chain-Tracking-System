@@ -3,6 +3,7 @@
 
 window.BSTS_CONFIG = Object.freeze({
   CONTRACT_ADDRESS: "0x3cd4c65E3F0232e9b279945DCf268Fd2b032979F",
+
   ABI: [
 		{
 			"inputs": [],
