@@ -1,9 +1,17 @@
-// contract-config.js
-// Global config for BSTS dApp
+(function () {
+  // Read ?ca=0x... from the page URL
+  const p = new URLSearchParams(location.search);
+  const caFromUrl = p.get('ca');
 
-window.BSTS_CONFIG = Object.freeze({
-  CONTRACT_ADDRESS: "0x3cd4c65E3F0232e9b279945DCf268Fd2b032979F",
-  ABI: [
+  // Validate ETH address
+  const isAddr = (x) => /^0x[a-fA-F0-9]{40}$/.test(x || '');
+
+  const CONTRACT_ADDRESS =
+    isAddr(caFromUrl) ? caFromUrl : "0x074E58aEcaDDc9d749EdB220C2C19E24ccdda9F1";
+
+  window.BSTS_CONFIG = Object.freeze({
+    CONTRACT_ADDRESS,
+    ABI: [
 		{
 			"inputs": [],
 			"stateMutability": "nonpayable",
@@ -431,4 +439,8 @@ window.BSTS_CONFIG = Object.freeze({
 			"type": "function"
 		}
 	]
-});
+  });
+
+  // Optional: quick debug
+  console.log("BSTS using CA:", CONTRACT_ADDRESS);
+})();
