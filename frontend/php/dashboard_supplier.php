@@ -52,6 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'price'      => $all[$id]['price'],
                     'qty'        => $qty,
                     'status'     => 'supplied',
+                    'onchain_id' => $all[$id]['onchain_id'] ?? null,
+                    'src_id'     => $id,
                     'updated_at' => now_iso()
                 ];
 
@@ -124,9 +126,11 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
   <?php else: ?>
     <?php foreach ($approved as $pid => $p): ?>
       <tr data-id="<?= h($p['id']) ?>"
-          data-name="<?= h($p['name']) ?>"
-          data-price="<?= h($p['price']) ?>"
-          data-qty="<?= h($p['qty']) ?>">
+        data-root-id="<?= h($p['onchain_id'] ?? '') ?>"
+        data-name="<?= h($p['name']) ?>"
+        data-price="<?= h($p['price']) ?>"
+        data-qty="<?= h($p['qty']) ?>">
+
 
         <td>#<?= h($p['id']) ?></td>
         <td><?= h($p['name']) ?></td>
@@ -143,7 +147,14 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
             <input type="number" name="qty"
                    min="1" max="<?= h($p['qty']) ?>"
                    required style="width:80px">
-            <button type="button" class="btn-onchain-buy">Buy on chain</button>
+            <button
+              type="button"
+              class="btn-onchain-buy"
+              <?= empty($p['onchain_id']) ? 'title="Missing on-chain id (re-approve the product to capture it)"' : '' ?>
+              >Buy on chain
+            </button>
+
+
           </form>
         </td>
       </tr>
@@ -155,14 +166,27 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
 <h2 style="margin:24px 0 8px;">Your Products</h2>
 <table>
   <?php if (empty($mine)): ?>
-    <tr><td colspan="7" class="muted">No products yet.</td></tr>
+    <tr><td colspan="8" class="muted">No products yet.</td></tr>
   <?php else: ?>
     <tr>
       <th>ID</th><th>Product</th><th>Price (ETH)</th><th>Qty</th>
-      <th>Status</th><th>Updated</th><th>Transaction</th>
+      <th>Status</th><th>Updated</th><th>Transaction</th><th>QR</th>
     </tr>
     <?php foreach ($mine as $r): ?>
       <?php if ($r['status'] === 'supplied'): ?>
+        <?php
+          // Build viewer URL exactly like producer (standard):
+          // QR_VIEWER_BASE has no query part, so we add ?id=...&name=...&qty=...&price=...&status=...
+          $viewerUrl = QR_VIEWER_BASE
+            . '?id='     . urlencode($r['id'])
+            . '&name='   . urlencode($r['name'])
+            . '&qty='    . urlencode($r['qty'])
+            . '&price='  . urlencode($r['price'])
+            . '&status=' . urlencode($r['status']);   // "supplied"
+
+          $qrImgUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data='
+                     . urlencode($viewerUrl);
+        ?>
         <tr data-id="<?= h($r['id']) ?>"
             data-name="<?= h($r['name']) ?>"
             data-price="<?= h($r['price']) ?>"
@@ -180,6 +204,13 @@ table, th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
             <?php else: ?>
               &mdash;
             <?php endif; ?>
+          </td>
+          <td>
+            <a data-qr="1" href="<?= h($viewerUrl) ?>" target="_blank">
+              <img src="<?= h($qrImgUrl) ?>"
+                   alt="QR for product #<?= h($r['id']) ?>"
+                   style="width:90px;height:90px;cursor:pointer;">
+            </a>
           </td>
         </tr>
       <?php endif; ?>
@@ -228,3 +259,30 @@ async function handleWithdraw() {
   }
 }
 </script>
+<script defer>
+document.addEventListener('DOMContentLoaded', function () {
+  const ca = (window.BSTS_CONFIG && window.BSTS_CONFIG.CONTRACT_ADDRESS) || '';
+  if (!/^0x[a-fA-F0-9]{40}$/.test(ca)) return; // nothing to do
+
+  document.querySelectorAll('a[data-qr="1"]').forEach(a => {
+    try {
+      const u = new URL(a.href, location.href);
+      if (!u.searchParams.get('ca')) {
+        u.searchParams.set('ca', ca);
+        a.href = u.toString();
+      }
+
+      const img = a.querySelector('img');
+      if (img && img.src.includes('api.qrserver.com')) {
+        const qr = new URL(img.src, location.href);
+        const dataParam = qr.searchParams.get('data') || a.href;
+        const data = new URL(dataParam, location.href);
+        data.searchParams.set('ca', ca);
+        qr.searchParams.set('data', data.toString());
+        img.src = qr.toString();
+      }
+    } catch(e){}
+  });
+});
+</script>
+

@@ -81,6 +81,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'approve') {
         $id = (int)($_POST['id'] ?? 0);
         $txhash = trim($_POST['txhash'] ?? ''); // comes from JS after on-chain success
+
+        $onchain = $_POST['onchain_id'] ?? '';
+        if (ctype_digit($onchain)) {
+            $all[$id]['onchain_id'] = (int)$onchain;
+        }
+
         if ($id && isset($all[$id]) && $all[$id]['owner'] === $me['username']) {
             // Only allow pending -> approved here; unapprove remains allowed but doesn't require chain
             if (($all[$id]['status'] ?? '') !== 'approved') {
@@ -88,6 +94,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $all[$id]['ownertx'] = $txhash;
                 $all[$id]['status'] = 'approved';
                 $all[$id]['updated_at'] = now_iso();
+                $onchain_id = (int)($_POST['onchain_id'] ?? 0);
+                if ($onchain_id > 0) {
+                    $all[$id]['onchain_id'] = $onchain_id;
+                }
+
                 $saved = save_products($all);
 
                 if ($saved) {
@@ -207,6 +218,8 @@ render_header("Producer Dashboard");
             <input type="hidden" name="id" value="<?= h($r['id']) ?>">
             <!-- JS will fill txhash only after chain success -->
             <input type="hidden" name="txhash" value="">
+            <input type="hidden" name="onchain_id" value="">
+
             <?php if ($r['status']==='pending'): ?>
               <!-- IMPORTANT: this button triggers on-chain call first -->
               <button type="button" class="btn-onchain-approve">Approve </button>
@@ -244,27 +257,36 @@ table, th, td {
    text-align: left;
 }
 </style>
+
 <h2 style="margin:24px 0 8px;">My Approved Products</h2>
 <table>
   <?php if (empty($mine)): ?>
-    <tr><td colspan="7" class="muted">No products yet.</td></tr>
+    <tr><td colspan="8" class="muted">No products yet.</td></tr>
   <?php else: ?>
     <tr>
-    <th>ID</th><th>Name</th><th>Price</th><th>Qty</th><th>Status</th><th>Updated</th><th>Transaction</th>
-  </tr>
+      <th>ID</th><th>Name</th><th>Price</th><th>Qty</th><th>Status</th><th>Updated</th><th>Transaction</th><th>QR</th>
+    </tr>
     <?php foreach ($mine as $r): ?>
     <?php if ($r['status'] === 'approved'): ?>
+      <?php
+        // Build viewer URL with product details
+        // Make sure QR_VIEWER_BASE in config.php has NO query string
+        $viewerUrl = QR_VIEWER_BASE
+          . '?id='     . urlencode($r['id'])
+          . '&name='   . urlencode($r['name'])
+          . '&qty='    . urlencode($r['qty'])
+          . '&price='  . urlencode($r['price'])
+          . '&status=' . urlencode($r['status']);
+
+        $qrImgUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data='
+                   . urlencode($viewerUrl);
+      ?>
       <tr data-id="<?= h($r['id']) ?>"
           data-name="<?= h($r['name']) ?>"
           data-price="<?= h($r['price']) ?>"
           data-qty="<?= h($r['qty']) ?>">
         <td>#<?= h($r['id']) ?></td>
-        <td>
-          <?php if ($r['status'] === 'approved'): ?>
-            <!-- Approved: read-only -->
-            <?= h($r['name']) ?>
-          <?php endif; ?>
-        </td>
+        <td><?= h($r['name']) ?></td>
         <td><?= h(number_format($r['price'], 4)) ?></td>
         <td><?= h($r['qty']) ?></td>
         <td>
@@ -274,12 +296,19 @@ table, th, td {
         </td>
         <td class="muted"><?= h($r['updated_at']) ?></td>
         <td class="muted">
-            <!--$url = "https://sepolia.etherscan.io/tx/" . h($r['history1']);-->
-            <a href="https://sepolia.etherscan.io/tx/<?= htmlspecialchars(h($r['ownertx'])) ?>" target="_blank">
-                View </a>        
-            </td>
+          <a href="https://sepolia.etherscan.io/tx/<?= htmlspecialchars(h($r['ownertx'])) ?>" target="_blank">
+            View
+          </a>
+        </td>
+        <td>
+          <a data-qr="1" href="<?= h($viewerUrl) ?>" target="_blank">
+            <img src="<?= h($qrImgUrl) ?>"
+                 alt="QR for product #<?= h($r['id']) ?>"
+                 style="width:90px;height:90px;cursor:pointer;">
+          </a>
+        </td>
       </tr>
-        <?php endif; ?>
+    <?php endif; ?>
     <?php endforeach; ?>
   <?php endif; ?>
 </table>
@@ -322,5 +351,31 @@ async function handleWithdraw() {
       "Withdraw failed: " + (e.shortMessage || e.message || e);
   }
 }
+</script>
+<script defer>
+document.addEventListener('DOMContentLoaded', function () {
+  const ca = (window.BSTS_CONFIG && window.BSTS_CONFIG.CONTRACT_ADDRESS) || '';
+  if (!/^0x[a-fA-F0-9]{40}$/.test(ca)) return; // nothing to do
+
+  document.querySelectorAll('a[data-qr="1"]').forEach(a => {
+    try {
+      const u = new URL(a.href, location.href);
+      if (!u.searchParams.get('ca')) {
+        u.searchParams.set('ca', ca);
+        a.href = u.toString();
+      }
+
+      const img = a.querySelector('img');
+      if (img && img.src.includes('api.qrserver.com')) {
+        const qr = new URL(img.src, location.href);
+        const dataParam = qr.searchParams.get('data') || a.href;
+        const data = new URL(dataParam, location.href);
+        data.searchParams.set('ca', ca);
+        qr.searchParams.set('data', data.toString());
+        img.src = qr.toString();
+      }
+    } catch(e){}
+  });
+});
 </script>
 

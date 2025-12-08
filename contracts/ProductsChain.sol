@@ -99,24 +99,23 @@ contract ProductsChain {
 
         require(roles[msg.sender] == Role.Supplier, "not supplier");
         require(p.approved, "not approved");
-
-        // qty-based checks
         require(qty > 0, "qty=0");
-        require(qty <= p.qty, "qty>available");
 
-        // Treat p.price as *price per unit* in wei
+        // Check against producer's available BEFORE transfer
+        uint256 availableBefore = p.qty;
+        require(qty <= availableBefore, "qty>available");
+
+        // price per unit * qty
         uint256 total = p.price * qty;
         require(msg.value == total, "wrong amount");
 
-        // Decrement remaining quantity (simple global view)
-        p.qty -= qty;
-
-        // Credit producer balance (producer is p.owner)
+        // Credit producer
         balances[p.owner] += msg.value;
 
-        // Track last supplier (for history)
+        // Now turn THIS product into the supplier's lot:
+        p.qty = qty;                    // the lot the supplier now has for resale
         p.supplier = msg.sender;
-        p.owner = msg.sender;  // last owner becomes this supplier
+        p.owner = msg.sender;           // last owner is the supplier
         p.updatedAt = uint64(block.timestamp);
 
         emit SupplierPaid(productId, msg.sender, qty, msg.value);

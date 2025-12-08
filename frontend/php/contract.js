@@ -10,6 +10,54 @@ if (!CONTRACT_ADDRESS || !ABI) {
 function toWei(ethString) {
   return ethers.parseUnits(String(ethString), 18);
 }
+async function resolveOnchainIdFromRow(row) {
+  //  if already known, use and cache as BigInt
+  if (row.dataset.rootId) return BigInt(row.dataset.rootId);
+
+  //  build the same metaHash we emitted at approve time
+  const fileId = row.dataset.srcId || row.dataset.id; // prefer supplier's src_id
+  const name   = row.dataset.name;
+  if (!name) throw new Error("Cannot resolve on-chain id: missing product name.");
+  const metaHash = fileId ? `local:${fileId}|${name}` : null;
+
+  const { contract } = await getSignerAndContract();
+  const latest    = await contract.runner.provider.getBlockNumber();
+  const fromBlock = Math.max(0, latest - 1_000_000);
+
+  const events = await contract.queryFilter(contract.filters.ProductAdded(), fromBlock, latest);
+
+  // 1) exact metaHash match (best)
+  let hit = null;
+  if (metaHash) hit = events.find(e => e?.args?.metaHash === metaHash) || null;
+
+  // 2) fallback: name + exact price(wei) match
+  if (!hit) {
+    try {
+      const priceWei = ethers.parseUnits(String(row.dataset.price), 18);
+      const cands = events.filter(e => {
+        const a = e?.args;
+        if (!a) return false;
+        const nameOk  = typeof a.metaHash === 'string' && a.metaHash.endsWith(`|${name}`);
+        const priceOk = a.price === priceWei; // BigInt compare
+        return nameOk && priceOk;
+      });
+      if (cands.length) hit = cands[cands.length - 1];
+    } catch {}
+  }
+
+  // 3) give a clear error if truly not found
+  if (!hit) {
+    // small debug to help you see what's wrong
+    console.warn("[resolver] No ProductAdded match", { metaHash, name, fileId, fromBlock, latest, eventsCount: events.length });
+    throw new Error("Could not auto-resolve on-chain id. Re-approve / re-ship to capture it.");
+  }
+
+  const idStr = hit.args.id.toString();
+  row.dataset.rootId = idStr; // cache for subsequent clicks
+  return BigInt(idStr);
+}
+
+
 
 async function getSignerAndContract() {
   if (!window.ethereum) throw new Error("MetaMask not found");
@@ -33,7 +81,34 @@ async function handleApproveOnChain(row) {
   const { contract } = await getSignerAndContract();
   const tx = await contract.addProduct(metaHash, toWei(price), BigInt(qty));
   const receipt = await tx.wait();
+
+  // Parse ProductAdded(id, owner, metaHash, price, qty)
+  let onchainId = "";
+  try {
+    const iface = new ethers.Interface(ABI);
+    for (const log of receipt.logs) {
+      if ((log.address || "").toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) continue;
+      try {
+        const parsed = iface.parseLog(log);
+        if (parsed?.name === "ProductAdded") {
+          onchainId = parsed.args.id.toString();
+          break;
+        }
+      } catch {}
+    }
+  } catch {}
+
+  console.log('Parsed onchain id from logs:', onchainId);
+
+  // Stash it in the approve form so PHP can save it
+  const form = row.querySelector("form.approve-form");
+  if (form) {
+    const idInput = form.querySelector('input[name="onchain_id"]');
+    if (idInput) idInput.value = onchainId;
+  }
+
   return receipt?.hash || tx.hash;
+
 }
 
 function wireApproveButtons() {
@@ -64,21 +139,24 @@ function wireApproveButtons() {
 }
 // ---------- Consumer pays supplier (qty-aware) ----------
 async function handleConsumerBuyOnChain(row) {
-  // On-chain product ID
-  const onchainId = BigInt(row.dataset.rootId || row.dataset.id);
+  const onchainId = await resolveOnchainIdFromRow(row);
 
-  const priceEthStr = row.dataset.price;
+
   const qtyInput = row.querySelector('input[name="qty"]');
   const qty = BigInt(qtyInput.value);
-  if (qty <= 0n) {
-    throw new Error("Quantity must be > 0");
-  }
-
-  const priceWei = ethers.parseUnits(priceEthStr, 18); // per-unit
-  const totalWei = priceWei * qty;
+  if (qty <= 0n) throw new Error("Quantity must be > 0");
 
   const { contract } = await getSignerAndContract();
+  const p = await contract.getProduct(onchainId); // trust chain
+
+  if (qty > p.qty) {
+    throw new Error(`Requested ${qty} exceeds on-chain available ${p.qty}`);
+  }
+
+  const totalWei = p.price * qty;
+
   const tx = await contract.payConsumer(onchainId, qty, { value: totalWei });
+
   const receipt = await tx.wait();
   return receipt?.hash || tx.hash;
 }
@@ -114,24 +192,29 @@ function wireConsumerBuyButtons() {
 
 // ---------- Supplier pays producer (qty-aware) ----------
 async function handleSupplierBuyOnChain(row) {
-  const id = BigInt(row.dataset.id);       // product id
-  const priceEthStr = row.dataset.price;   // per-unit price in ETH
+  // Use the real on-chain id captured at approval time
+  const onchainId = await resolveOnchainIdFromRow(row);
+
 
   const qtyInput = row.querySelector('input[name="qty"]');
   const qty = BigInt(qtyInput.value);
-
-  if (qty <= 0n) {
-    throw new Error("Quantity must be > 0");
-  }
-
-  const priceWei = ethers.parseUnits(priceEthStr, 18); // per-unit wei
-  const totalWei = priceWei * qty;
+  if (qty <= 0n) throw new Error("Quantity must be > 0");
 
   const { contract } = await getSignerAndContract();
-  const tx = await contract.paySupplier(id, qty, { value: totalWei });
+  const p = await contract.getProduct(onchainId); // p.price is wei per unit
+
+  if (qty > p.qty) {
+    throw new Error(`Requested ${qty} exceeds on-chain available ${p.qty}`);
+  }
+
+  const totalWei = p.price * qty;
+
+  const tx = await contract.paySupplier(onchainId, qty, { value: totalWei });
+
   const receipt = await tx.wait();
   return receipt?.hash || tx.hash;
 }
+
 
 function wireSupplierBuyButtons() {
   const buttons = document.querySelectorAll(".btn-onchain-buy");
