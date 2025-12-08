@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BSTS Product QR Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #020617;
+      --fg: #e5e7eb;
+      --muted: #9ca3af;
+      --accent-ok: #22c55e;
+      --accent-mid: #0ea5e9;
+      --accent-bad: #f97316;
+      --border: rgba(148,163,184,.4);
+    }
+    * { box-sizing: border-box }
+    body { margin:0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+    .wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .card {
+      background: var(--bg);
+      border-radius: 16px;
+      padding: 20px 24px;
+      max-width: 520px;
+      width: 100%;
+      box-shadow: 0 12px 40px rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border);
+    }
+    h1 { margin: 0 0 2px; font-size: 22px; }
+    .muted { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+    .meta { display:flex; gap:10px; align-items:center; margin: 8px 0 14px; font-size: 12px; color: var(--muted); }
+    .meta .dot { width:6px; height:6px; border-radius:999px; background: var(--border); }
+    .product-card { display: grid; gap: 6px; font-size: 15px; margin-top: 4px; }
+    .field { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed rgba(148, 163, 184, 0.35); }
+    .field:last-child { border-bottom: none; }
+    .label { font-weight: 600; color: #cbd5e1; }
+    .value { text-align: right; color: var(--fg); overflow-wrap: anywhere; }
+    .status-ok { color: var(--accent-ok); font-weight: 700; }
+    .status-mid { color: var(--accent-mid); font-weight: 700; }
+    .status-bad { color: var(--accent-bad); font-weight: 700; }
+    .links { margin-top: 12px; display:flex; gap:12px; flex-wrap:wrap; }
+    .links a { color:#93c5fd; text-decoration: none; font-size: 13px; border-bottom: 1px dashed rgba(147,197,253,.5); }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Product Details</h1>
+      <p id="status" class="muted">Loading product…</p>
+
+      <div class="meta">
+        <span id="contractPill" class="pill"></span>
+        <span class="dot"></span>
+        <span id="networkPill" class="pill">Sepolia</span>
+      </div>
+
+      <div id="root" class="product-card"></div>
+
+      <div id="links" class="links" style="display:none;">
+        <a id="linkContract" target="_blank" rel="noopener">View Contract on Etherscan</a>
+        <a id="linkRead" target="_blank" rel="noopener">Read Contract (getProduct)</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ethers v6 UMD -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+  <script>
+    /***********************
+     * CONFIG (edit if needed)
+     ***********************/
+    // 1) Default contract address used when ?ca= is absent.
+    const DEFAULT_CONTRACT = "0x3cd4c65E3F0232e9b279945DCf268Fd2b032979F"; // change if you want
+
+    // 2) Default Sepolia RPC (you can also pass ?rpc=... in the URL)
+    const DEFAULT_RPC = "https://rpc.sepolia.org";
+
+    // 3) Minimal ABI with getProduct(uint256) → Product tuple
+    const ABI_GET_PRODUCT = [{
+      "inputs":[{"internalType":"uint256","name":"id","type":"uint256"}],
+      "name":"getProduct",
+      "outputs":[{"components":[
+        {"internalType":"uint256","name":"id","type":"uint256"},
+        {"internalType":"address","name":"owner","type":"address"},
+        {"internalType":"address","name":"supplier","type":"address"},
+        {"internalType":"address","name":"consumer","type":"address"},
+        {"internalType":"string","name":"ownertx","type":"string"},
+        {"internalType":"string","name":"suppliertx","type":"string"},
+        {"internalType":"string","name":"metaHash","type":"string"},
+        {"internalType":"uint256","name":"price","type":"uint256"},
+        {"internalType":"uint256","name":"qty","type":"uint256"},
+        {"internalType":"bool","name":"approved","type":"bool"},
+        {"internalType":"uint64","name":"createdAt","type":"uint64"},
+        {"internalType":"uint64","name":"updatedAt","type":"uint64"}
+      ],"internalType":"struct ProductsChain.Product","name":"","type":"tuple"}],
+      "stateMutability":"view","type":"function"
+    }];
+
+    /***********************
+     * Helpers
+     ***********************/
+    const z = (sel) => document.querySelector(sel);
+    const fmtEth = (wei) => {
+      try { return ethers.formatEther(wei) + " ETH"; }
+      catch { return String(wei); }
+    };
+    const fmtTs = (t) => {
+      const n = Number(t ?? 0);
+      if (!n) return "-";
+      return new Date(n * 1000).toISOString().replace('T',' ').replace('Z',' UTC');
+    };
+    const short = (s) => s ? (s.slice(0,6) + "…" + s.slice(-4)) : "-";
+    const isAddr = (x) => /^0x[a-fA-F0-9]{40}$/.test(x || "");
+    const isNonZero = (a) => isAddr(a) && !/^0x0{40}$/i.test(a.slice(2));
+
+    function statusFrom(product) {
+      if (isNonZero(product.consumer)) return { label: "Purchased", cls: "status-bad" };
+      if (isNonZero(product.supplier)) return { label: "Supplied",  cls: "status-mid" };
+      if (product.approved)            return { label: "Approved",  cls: "status-ok"  };
+      return { label: "Pending", cls: "" };
+    }
+
+    /***********************
+     * Main
+     ***********************/
+    async function main(){
+      const p = new URLSearchParams(location.search);
+      const idStr = p.get("id");
+      const caParam = p.get("ca");
+      const rpcParam = p.get("rpc");
+
+      const id = idStr ? BigInt(idStr) : null;
+      if (!id || id <= 0n) {
+        z("#status").textContent = "Missing or invalid ?id in URL.";
+        return;
+      }
+
+      const contractAddress = isAddr(caParam) ? caParam : DEFAULT_CONTRACT;
+      const rpcUrl = rpcParam || DEFAULT_RPC;
+
+      // UI pills
+      z("#contractPill").textContent = short(contractAddress);
+      z("#contractPill").title = contractAddress;
+
+      try {
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const contract = new ethers.Contract(contractAddress, ABI_GET_PRODUCT, provider);
+
+        const product = await contract.getProduct(id);
+
+        // If product.id is 0, assume not found (convention)
+        if (!product || (product.id ?? 0n) === 0n) {
+          z("#status").textContent = "Product not found on chain.";
+          return;
+        }
+
+        const st = statusFrom(product);
+
+        const fields = [
+          ["Product ID",   "#" + product.id.toString()],
+          ["Owner",        product.owner],
+          ["Supplier",     isNonZero(product.supplier) ? product.supplier : "-"],
+          ["Consumer",     isNonZero(product.consumer) ? product.consumer : "-"],
+          ["Price",        fmtEth(product.price)],
+          ["Quantity",     String(product.qty)],
+          ["Status",       `<span class="${st.cls}">${st.label}</span>`],
+          ["Meta",         product.metaHash && product.metaHash.trim() ? product.metaHash : "-"],
+          ["Created",      fmtTs(product.createdAt)],
+          ["Updated",      fmtTs(product.updatedAt)]
+        ];
+
+        // Render
+        z("#status").textContent = "";
+        const html = fields.map(([k,v]) => `
+          <div class="field">
+            <span class="label">${k}:</span>
+            <span class="value">${v}</span>
+          </div>`).join("");
+        z("#root").innerHTML = html;
+
+        // Links
+        const ca = encodeURIComponent(contractAddress);
+        z("#linkContract").href = `https://sepolia.etherscan.io/address/${ca}`;
+        z("#linkRead").href     = `https://sepolia.etherscan.io/address/${ca}#readContract`;
+        z("#links").style.display = "flex";
+
+      } catch (e) {
+        z("#status").textContent = "Error loading product: " + (e.shortMessage || e.message || e);
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
