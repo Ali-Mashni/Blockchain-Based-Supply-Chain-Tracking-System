@@ -1,9 +1,46 @@
 # Blockchain-Based Supply Chain Tracking System (BSTS)
 
-A minimal dApp for supply-chain transparency built for Ethereum Sepolia with a local PHP (XAMPP) UI. Roles: Producer registers products, Supplier purchases quantities from producers, Consumer purchases from suppliers. Payments accrue to on-chain internal balances and can be withdrawn. Local app state (users, products) is stored in text files for simplicity.
+A minimal **Ethereum dApp (Sepolia)** for supply-chain transparency with a **local PHP (XAMPP) web UI** and optional **QR-based public verification**.  
+**Roles:** Producer registers products → Supplier buys quantities from producers → Consumer buys from suppliers.  
+Payments accumulate into **on-chain internal balances** and can be **withdrawn** by the Producer/Supplier.
+
+> Built as an educational project: the UI is intentionally lightweight and local state is stored in flat files for simplicity.
 
 ---
 
+## Screenshots (Running Product)
+
+### Producer — Add Product
+![Producer - Add Product](docs/images/P-Add_Product.png)
+
+### Producer — Approve / Publish + QR
+![Producer - Approve Product](docs/images/P-Approve.png)
+
+### Supplier — Buy on-chain + Inventory + Balance
+![Supplier Dashboard](docs/images/S-Dashboard.png)
+
+### MetaMask — Withdraw Balance (on-chain internal balance)
+![MetaMask Withdraw Balance](docs/images/MM-Withdraw_Balance.png)
+
+### Etherscan Proof — Transaction Details (Sepolia)
+![Etherscan Transaction](docs/images/Etherscan-transaction.png)
+
+---
+## Architecture
+
+### System Overview
+![Architecture Overview](docs/images/architecture-overview.png)
+
+**Notes**
+- Users interact through **PHP pages** that render the UI and load the **frontend JS dApp** logic.
+- The JS dApp uses **MetaMask + ethers.js** to sign and send transactions to Sepolia.
+- Local application state (demo users, rows, and UI convenience data) is stored in **text files**.
+- The producer flow can generate **QR images** that can open a read-only product verification experience.
+
+### Sequence Flow (End-to-End)
+![Sequence Diagram](docs/images/sequence-flow.png)
+
+---
 ## Table of Contents
 - Overview
 - Features
@@ -12,8 +49,8 @@ A minimal dApp for supply-chain transparency built for Ethereum Sepolia with a l
 - Quick Start
 - Configure the Contract
 - Run the App (XAMPP)
-- Demo Script
-- QR Viewer (teammate handoff)
+- Demo Script (Happy Path)
+- QR Viewer (Optional)
 - Troubleshooting
 - Security & Limits
 - Roadmap
@@ -21,228 +58,214 @@ A minimal dApp for supply-chain transparency built for Ethereum Sepolia with a l
 ---
 
 ## Overview
-BSTS demonstrates end-to-end flows:
-- Add product on chain (producer) and publish it to the catalog.
-- Supplier buys any quantity up to the available stock; producer’s contract balance increases.
-- Consumer buys from supplier; supplier’s contract balance increases.
-- Both producer and supplier can withdraw their balances to their wallets.
-- Optional QR codes take any user to a read-only SPA that displays product info from chain.
+
+BSTS demonstrates end-to-end supply-chain flows:
+
+- **Producer**
+  - Adds products (name, unit price, quantity)
+  - Approves/publishes products on-chain
+  - Receives on-chain internal balance when suppliers purchase
+  - Withdraws balance to wallet
+
+- **Supplier**
+  - Purchases available quantities from producers
+  - Manages “supplied” inventory batches for consumer purchases
+  - Receives on-chain internal balance when consumers purchase
+  - Withdraws balance to wallet
+
+- **Consumer**
+  - Purchases quantity from supplier inventory
+  - Can verify product info (optionally via QR viewer)
 
 ---
 
 ## Features
-- Role-based access (producer, supplier, consumer) enforced in the smart contract.
-- Quantity-aware payments for supplier and consumer.
-- On-chain internal balances with withdrawal.
-- Flat-file users and products for a lightweight local stack.
-- Single shared contract config file used by both the PHP app and the QR SPA.
+- **Role-based access control** enforced by the smart contract (Producer/Supplier/Consumer)
+- **Quantity-aware payments** (unit price × quantity)
+- **On-chain internal balances** with **withdrawal**
+- **Flat-file local state** (`users.txt`, `products.txt`) for an extremely lightweight stack
+- **Single shared contract config** (`contract-config.js`) used by both the PHP UI and the QR viewer
+- Optional **QR codes** for read-only verification page
 
 ---
 
 ## Tech Stack
-- Solidity on Ethereum Sepolia, deployed via Remix and used with MetaMask and ethers.js (browser UMD).
-- PHP served by XAMPP’s Apache for the local UI.
-- Text files for users and products.
+- **Solidity** smart contract on **Ethereum Sepolia**
+- **MetaMask** for transaction signing
+- **ethers.js (UMD)** used in the browser
+- **PHP + Apache (XAMPP)** for the local web UI
+- **Flat files** for local users/products storage
 
 ---
 
 ## Repository Layout
-Use this as a reference for where files live when you copy the project under XAMPP’s htdocs.
 
 ```text
 SUPPLYCHAIN/
 ├─ contracts/
 │  └─ ProductsChain.sol
 ├─ docs/
-│  └─ README.md   (this file)
-├─ frontend\php/
-│  ├─ config.php
-│  ├─ contract-config.js
-│  ├─ contract.js
-│  ├─ dashboard_admin.php
-│  ├─ dashboard_producer.php
-│  ├─ dashboard_supplier.php
-│  ├─ dashboard_consumer.php
-│  ├─ dashboard.php
-│  ├─ login.php
-│  ├─ logout.php
-│  ├─ users.txt
-│  └─ products.txt
+|  └─ ICS440 Project Progress Report.pdf
+|  └─ ICS440 Project Final Report.pdf
+│  └─ images/
+└─ frontend/php/
+   ├─ config.php
+   ├─ contract-config.js
+   ├─ contract.js
+   ├─ dashboard_admin.php
+   ├─ dashboard_producer.php
+   ├─ dashboard_supplier.php
+   ├─ dashboard_consumer.php
+   ├─ dashboard.php
+   ├─ login.php
+   ├─ logout.php
+   ├─ users.txt
+   └─ products.txt
 ```
 
 ---
 
 ## Quick Start
 
-1) Install and start XAMPP (Apache + PHP).
+1) Install **XAMPP** and start **Apache**.
 
-2) Copy the project to htdocs, for example:
-   - C:\xampp\htdocs\ics440\
+2) Copy the project under XAMPP `htdocs`, for example:
+- `C:\xampp\htdocs\ics440\`
 
-3) Open the app:
-   - http://localhost/ics440/login.php
+3) Open:
+- `http://localhost/ics440/login.php`
 
 4) Log in as admin and create demo users:
-   - Default admin: admin / admin123
-   - Create prod1 (producer), sup1 (supplier), cons1 (consumer)
+- Default admin: `admin / admin123`
+- Create:
+  - `prod1` (producer)
+  - `sup1` (supplier)
+  - `cons1` (consumer)
 
-5) Make sure each MetaMask account has Sepolia ETH.
+5) Ensure each MetaMask account has **Sepolia ETH**.
 
 ---
 
 ## Configure the Contract
 
-1) Deploy ProductsChain.sol on Sepolia using Remix (Injected Provider – MetaMask).
-2) Copy the deployed address and ABI.
-3) Create or edit the shared config file used by all pages:
+### 1) Deploy on Sepolia
+Deploy `contracts/ProductsChain.sol` using Remix:
+- Environment: **Injected Provider – MetaMask**
+- Network: **Sepolia**
+
+Copy:
+- Deployed contract address
+- Full ABI JSON
+
+### 2) Set shared config (used by all pages)
+Update:
 
 ```javascript
-// frontend\php\contract-config.js
+// frontend/php/contract-config.js
 window.BSTS_CONFIG = {
   CONTRACT_ADDRESS: "0xYOUR_SEPOLIA_CONTRACT",
   ABI: [ /* paste FULL ABI JSON here */ ]
 };
 ```
 
-4) Assign roles once (use the deployer/admin account in Remix):
-   - setRole( producerAddress, 1 )   for Producer
-   - setRole( supplierAddress, 2 )   for Supplier
-   - setRole( consumerAddress, 3 )   for Consumer
+### 3) Assign roles (run once, using the deployer/admin account)
+Call these contract methods (in Remix) for the addresses you will use in MetaMask:
 
-5) Hard-refresh the browser if you redeploy (to avoid stale JS).
+```text
+setRole(producerAddress, 1)  // Producer
+setRole(supplierAddress, 2)  // Supplier
+setRole(consumerAddress, 3)  // Consumer
+```
+
+### 4) Cache note
+If you redeploy or change ABI/address:
+- Hard refresh your browser (avoid stale JS config).
 
 ---
 
 ## Run the App (XAMPP)
 
-- Start Apache.
-- Browse to http://localhost/ics440/login.php
-- Confirm MetaMask is on Sepolia.
-- The app stores users and products in users.txt and products.txt (ensure Apache can write).
+- Start Apache in XAMPP.
+- Visit: `http://localhost/ics440/login.php`
+- Ensure MetaMask is set to **Sepolia**.
+- The app stores local state in:
+  - `frontend/php/users.txt`
+  - `frontend/php/products.txt`
+
+If you get write/permission issues, ensure Apache can write to those files (or run XAMPP as admin on Windows).
 
 ---
 
 ## Demo Script (Happy Path)
 
-Producer
-1) Log in as prod1.
-2) Add product (for example: name Apples, price 0.0001, qty 100).
-3) Click Approve → MetaMask pops → confirm.
-4) Product appears as approved with an Etherscan link.
+### Producer Flow
+1) Log in as Producer (`prod1`).  
+2) Add a product (example: `Apple`, `0.0001` ETH, qty `100`).  
+3) Click **Approve** → MetaMask pops up → Confirm.  
+4) Product becomes **approved** and appears in the approved list with:
+   - **Transaction** link (Etherscan)
+   - **QR** code for verification
 
-Supplier
-1) Log in as sup1.
-2) In Available Products, choose a product from prod1.
-3) Enter quantity (≤ available) and click Buy on chain.
-4) Contract credits producer’s internal balance and reduces remaining qty; app records a supplied row.
+### Supplier Flow
+1) Log in as Supplier (`sup1`).  
+2) Under **Available Products**, choose a product and enter quantity (≤ available).  
+3) Click **Buy on chain** → confirm in MetaMask.  
+4) Supplier inventory updates and the Producer’s internal on-chain balance increases.
 
-Consumer
-1) Log in as cons1.
-2) In Shipped Products, choose a supplier batch.
-3) Enter quantity and click Buy on chain.
-4) Contract credits supplier’s internal balance; app records a purchased row.
+### Consumer Flow
+1) Log in as Consumer (`cons1`).  
+2) Choose a supplier batch / inventory item.  
+3) Enter quantity → **Buy on chain** → confirm in MetaMask.  
+4) Supplier’s internal on-chain balance increases.
 
-Withdraw
-- From producer or supplier (console or small button you add), call:
+### Withdraw (Producer or Supplier)
+The UI shows the **on-chain balance**, then you can withdraw it via MetaMask confirmation.
 
-```javascript
-// helper functions available in contract.js
-await getMyOnChainBalance(); // { addr, balWei, balEth }
-await withdrawMyBalance();   // returns tx hash on success
-```
-
----
-
-## QR Viewer (teammate handoff)
-
-Goal: a read-only SPA (GitHub Pages is fine) that shows product details given a URL like:
-- https://yourname.github.io/bsts-qr/?id=1
-
-What to reuse
-- Copy the same contract-config.js into the SPA so both apps target the same contract.
-
-Minimal SPA helper (read-only; no MetaMask required):
+If you also expose helper calls in `contract.js`, the intended flow is:
 
 ```javascript
-// spa-contract.js
-async function getReadOnlyContract() {
-  const RPC_URL = "https://sepolia.infura.io/v3/YOUR_KEY";
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
-  return new ethers.Contract(
-    window.BSTS_CONFIG.CONTRACT_ADDRESS,
-    window.BSTS_CONFIG.ABI,
-    provider
-  );
-}
-async function fetchProductById(id) {
-  const c = await getReadOnlyContract();
-  return c.getProduct(BigInt(id));
-}
+await getMyOnChainBalance(); // returns address + balance
+await withdrawMyBalance();   // sends tx, returns tx hash
 ```
-
-Minimal SPA logic:
-
-```javascript
-// index.html inline script (after including ethers UMD and the two JS files above)
-async function main() {
-  const id = new URLSearchParams(location.search).get("id");
-  const root = document.getElementById("root");
-  if (!id) { root.textContent = "Missing ?id"; return; }
-  try {
-    const p = await fetchProductById(id);
-    root.textContent = [
-      "Product #" + p.id,
-      "Owner:     " + p.owner,
-      "Supplier:  " + p.supplier,
-      "Consumer:  " + p.consumer,
-      "Meta:      " + p.metaHash,
-      "PriceWei:  " + p.price,
-      "Qty:       " + p.qty,
-      "Approved:  " + p.approved
-    ].join("\n");
-  } catch (e) {
-    root.textContent = "Error: " + (e.shortMessage || e.message || e);
-  }
-}
-main();
-```
-
-The PHP app should generate QR codes that encode the SPA URL with the on-chain product id.
 
 ---
 
 ## Troubleshooting
 
-Etherscan shows nothing
-- Use the Sepolia explorer and a Sepolia tx hash. Check MetaMask network and the contract address in contract-config.js.
+**MetaMask connects but calls fail**
+- Confirm network is **Sepolia** and `CONTRACT_ADDRESS` matches your deployed contract.
 
-“not producer / supplier / consumer”
-- Role not set for the current MetaMask address. Assign once in Remix as admin.
+**“not producer / supplier / consumer”**
+- Role is not assigned for the MetaMask address you’re currently using.
 
-“not found/approved”
-- You likely used a local row id instead of the on-chain product id. Reset by clearing products.txt, re-approving a fresh product.
+**“no matching fragment”**
+- ABI mismatch (wrong ABI or wrong address). Re-copy ABI/address from Remix deployment.
 
-“no matching fragment”
-- ABI does not match deployed bytecode, or address is wrong. Re-copy ABI and update the config.
+**Etherscan link opens but looks wrong**
+- Ensure it’s **Sepolia** Etherscan and the tx hash is for Sepolia.
 
-“insufficient funds”
-- The caller wallet lacks Sepolia ETH for value + gas.
+**Local rows look inconsistent after redeploy**
+- Flat-file state can desync from chain. Clear `products.txt` and redo the demo with the new contract address.
 
-Price or quantity mismatches
-- UI converts ETH strings to wei; contract treats price as wei per unit; total is price times quantity.
+**Insufficient funds**
+- The wallet needs Sepolia ETH for gas (and for payable functions where value is sent).
 
 ---
 
 ## Security & Limits
-- This is a teaching demo: no production security, no database, no server hardening.
-- Do not store private keys on the server in real systems.
-- No upgrade path; contracts are immutable once deployed.
+- Educational demo; not production hardened.
+- Flat-file storage is not suitable for real deployments.
+- No contract upgrade proxy; redeploy required for changes.
+- Do not store private keys server-side.
 
 ---
 
 ## Roadmap
-- Persist on-chain id in the local rows to simplify lookups.
-- Index contract events for a verifiable history page.
-- Add UI buttons around balance checks and withdraw with toasts and loaders.
-- Optional IPFS metadata.
-- Automated tests and linting.
+- Persist **on-chain product ID** alongside local file rows to remove mapping ambiguity
+- Index contract events for a verifiable history/audit trail view
+- Add UI polish: loaders, toast notifications, disabled states during tx mining
+- Add a dedicated **Withdraw** button + balance refresh UX for Producer/Supplier
+- Optional IPFS metadata for richer product details
+- Add automated tests (contract + UI integration)
+
+---
